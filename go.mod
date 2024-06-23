@@ -1,4 +1,4 @@
-module sidekickapp.xyz/whatsappbot
+module github.com/JeremyJalpha/WhatsAppBot
 
 go 1.21.2
 
