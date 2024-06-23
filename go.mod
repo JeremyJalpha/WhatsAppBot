@@ -1,4 +1,4 @@
-module github.com/JeremyJalpha/WhatsAppBot
+module github.com/jeremyjalpha/whatsappbot
 
 go 1.21.2
 
