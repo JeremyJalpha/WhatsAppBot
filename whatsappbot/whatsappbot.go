@@ -99,7 +99,7 @@ type ChatClient struct {
 }
 
 type Chat interface {
-	SendMessage(client ChatClient, destinationNum, chatMessage string) error
+	SendMessage(destinationNum, chatMessage string) error
 }
 
 func (c *ChatClient) SendMessage(destinationNum, chatMessage string) error {
