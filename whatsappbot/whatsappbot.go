@@ -12,14 +12,17 @@ import (
 
 	"database/sql"
 
+	"github.com/febriliankr/whatsapp-cloud-api"
 	_ "github.com/lib/pq"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	sayMenu = "For a command list please type & send-: menu?\nPlease include the question mark."
+	whatsAppServer = "s.whatsapp.net"
+	sayMenu        = "For a command list please type & send-: menu?\nPlease include the question mark."
 
 	reminderGreeting = "Please save your email address, by typing & sending-: update email: example@emailprovider.com"
 
@@ -88,6 +91,36 @@ type UpdateOrderCommand struct {
 
 type QuestionCommand struct {
 	CommandData
+}
+
+type ChatClient struct {
+	*whatsmeow.Client
+	*whatsapp.Whatsapp
+}
+
+type Chat interface {
+	SendMessage(client ChatClient, destinationNum, chatMessage string) error
+}
+
+func (c *ChatClient) SendMessage(destinationNum, chatMessage string) error {
+	if c.Client != nil {
+		jId := types.NewJID(destinationNum, whatsAppServer)
+		_, err := c.Client.SendMessage(context.Background(), jId, &waProto.Message{Conversation: proto.String(chatMessage)})
+		if err != nil {
+			log.Printf("ReturnToUser Failed with: " + err.Error())
+			return fmt.Errorf("ReturnToUser Failed with: " + err.Error())
+		}
+		return nil
+	} else if c.Whatsapp != nil {
+		_, err := c.SendText(destinationNum, chatMessage)
+		if err != nil {
+			log.Println("ReturnToUser Failed with: " + err.Error())
+			return fmt.Errorf("ReturnToUser Failed with: " + err.Error())
+		}
+		return nil
+	} else {
+		return errors.New("WhatsApp client object not instantiated")
+	}
 }
 
 func (cmd UpdateUserInfoCommand) Execute(db *sql.DB, ui UserInfo, isAutoInc bool) error {
@@ -174,7 +207,7 @@ func (cc CommandCollection) ProcessCommands(ui UserInfo, db *sql.DB, isAutoInc b
 	return strings.Join(errors, "\n")
 }
 
-func ChatBegin(client *whatsmeow.Client, convo ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) {
+func (c *ChatClient) ChatBegin(convo ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) {
 	commandRes := unhandledCommandException
 	commands := GetCommandsFromLastMessage(convo.MessageBody, convo, db, checkoutUrls, isAutoInc)
 	if len(commands) != 0 {
@@ -200,9 +233,9 @@ func ChatBegin(client *whatsmeow.Client, convo ConversationContext, db *sql.DB, 
 	convo.UserExisted = true
 
 	// Main - Send a WhatsApp response
-	_, err := client.SendMessage(context.Background(), convo.SenderJID, &waProto.Message{Conversation: proto.String(commandRes)})
+	err := c.SendMessage(convo.UserInfo.CellNumber, commandRes)
 	if err != nil {
-		log.Println("ReturnToUser Failed with: " + err.Error())
+		log.Println(err.Error())
 		return
 	}
 }
