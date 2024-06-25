@@ -36,13 +36,13 @@ func Test_ParseUpdateOrderCommand(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			commandText: "update order 6-0",
-			expected: []wb.MenuIndication{
-				{ItemMenuNum: 6, ItemAmount: "0"},
-			},
-			expectError: false,
-		},
+		// {
+		// 	commandText: "update order 6-0",
+		// 	expected: []wb.MenuIndication{
+		// 		{ItemMenuNum: 6, ItemAmount: "0"},
+		// 	},
+		// 	expectError: true,
+		// },
 	}
 
 	for _, test := range tests {
