@@ -36,16 +36,30 @@ func Test_ParseUpdateOrderCommand(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			commandText: "update order 6-0",
+			expected: []wb.MenuIndication{
+				{ItemMenuNum: 6, ItemAmount: "0"},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
 		result, err := wb.ParseUpdateOrderCommand(test.commandText)
-		if (err != nil) != test.expectError {
-			t.Errorf("ParseUpdateOrderCommand(%q) error = %v, expectError %v", test.commandText, err, test.expectError)
-			continue
-		}
-		if !reflect.DeepEqual(result, test.expected) {
-			t.Errorf("ParseUpdateOrderCommand(%q) = %v, want %v", test.commandText, result, test.expected)
+
+		if err != nil {
+			if test.expectError {
+				t.Errorf("ParseUpdateOrderCommand(%q) error = %v, expectError %v", test.commandText, err, test.expectError)
+				continue
+			} else {
+				t.Errorf("ParseUpdateOrderCommand(%q) received error = %v, but expected Error: %v", test.commandText, err, test.expectError)
+				continue
+			}
+		} else {
+			if !reflect.DeepEqual(result, test.expected) {
+				t.Errorf("ParseUpdateOrderCommand(%q) = %v, want %v", test.commandText, result, test.expected)
+			}
 		}
 	}
 }
