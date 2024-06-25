@@ -62,7 +62,7 @@ func (c *CustomerOrder) SetCurrentOrderFromDB(db *sql.DB, senderNum string, isAu
 	return nil
 }
 
-func (c *CustomerOrder) checkInitialiation(db *sql.DB, senderNum string, isAutoInc bool) string {
+func (c *CustomerOrder) checkInitialization(db *sql.DB, senderNum string, isAutoInc bool) string {
 	//Get the customer's current order
 	if c.OrderItems.MenuIndications == nil {
 		c.SetCurrentOrderFromDB(db, senderNum, isAutoInc)
@@ -75,7 +75,7 @@ func (c *CustomerOrder) checkInitialiation(db *sql.DB, senderNum string, isAutoI
 
 // A function that returns the current order of a user as a string
 func (c *CustomerOrder) GetCurrentOrderAsAString(db *sql.DB, senderNum string, isAutoInc bool) string {
-	isInited := c.checkInitialiation(db, senderNum, isAutoInc)
+	isInited := c.checkInitialization(db, senderNum, isAutoInc)
 	if isInited != "Initialized" {
 		return isInited
 	}
@@ -163,7 +163,7 @@ func (c *CustomerOrder) BuildItemName(itemNamePrefix string) string {
 
 // Main function to tally the order
 func (c *CustomerOrder) TallyOrder(db *sql.DB, senderNum string, isAutoInc bool) (int, string, error) {
-	isInited := c.checkInitialiation(db, senderNum, isAutoInc)
+	isInited := c.checkInitialization(db, senderNum, isAutoInc)
 	if isInited != "Initialized" {
 		return -1, "", fmt.Errorf("while tallying the order, no current order")
 	}
