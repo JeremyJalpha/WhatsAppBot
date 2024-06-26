@@ -96,9 +96,9 @@ func (c *CustomerOrder) GetCurrentOrderAsAString(db *sql.DB, senderNum string, i
 }
 
 // Insert User Answer into database
-func (c CustomerOrder) insertOrder(db *sql.DB, update OrderItems) error {
+func (c CustomerOrder) insertOrder(db *sql.DB) error {
 	// Convert OrderItems struct to JSON string
-	orderItemsJSON, err := json.Marshal(update)
+	orderItemsJSON, err := json.Marshal(c.OrderItems)
 	if err != nil {
 		return fmt.Errorf("failed to marshal orderItems: %w", err)
 	}
@@ -114,9 +114,9 @@ func (c CustomerOrder) insertOrder(db *sql.DB, update OrderItems) error {
 	return nil
 }
 
-func (c CustomerOrder) updateCurrentOrder(db *sql.DB, update OrderItems) error {
+func (c CustomerOrder) updateCurrentOrder(db *sql.DB) error {
 	// Convert OrderItems struct to JSON string
-	orderItemsJSON, err := json.Marshal(update)
+	orderItemsJSON, err := json.Marshal(c.OrderItems)
 	if err != nil {
 		return fmt.Errorf("failed to marshal orderItems: %w", err)
 	}
@@ -131,12 +131,47 @@ func (c CustomerOrder) updateCurrentOrder(db *sql.DB, update OrderItems) error {
 	return nil
 }
 
+// UpdateOrInsertCurrentOrder updates or inserts a customer order in the database.
+func (c *CustomerOrder) updateCustOrdItems(update OrderItems) error {
+	// Create a map to track existing MenuIndications by ItemMenuNum
+	existingMenuIndications := make(map[int]MenuIndication)
+	for _, existing := range c.OrderItems.MenuIndications {
+		existingMenuIndications[existing.ItemMenuNum] = existing
+	}
+
+	// Update existing MenuIndications with new values
+	for _, new := range update.MenuIndications {
+		if existing, ok := existingMenuIndications[new.ItemMenuNum]; ok {
+			// Update existing MenuIndication
+			existing.ItemAmount = new.ItemAmount
+			// Remove MenuIndication if ItemAmount is zero
+			if existing.ItemAmount == "0" {
+				delete(existingMenuIndications, new.ItemMenuNum)
+			}
+		} else {
+			// Add new MenuIndication
+			existingMenuIndications[new.ItemMenuNum] = new
+		}
+	}
+
+	// Convert the map back to a slice of MenuIndications
+	var updatedMenuIndications []MenuIndication
+	for _, v := range existingMenuIndications {
+		updatedMenuIndications = append(updatedMenuIndications, v)
+	}
+
+	// Update c.OrderItems with the updated MenuIndications
+	c.OrderItems.MenuIndications = updatedMenuIndications
+
+	return nil
+}
+
 func (c *CustomerOrder) UpdateOrInsertCurrentOrder(db *sql.DB, senderNum string, catalogueID string, update OrderItems, isAutoInc bool) error {
 	// Try to find the order in the database
 	err := c.SetCurrentOrderFromDB(db, senderNum, isAutoInc)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
-			err := c.insertOrder(db, update)
+			err := c.insertOrder(db)
 			if err != nil {
 				log.Printf("error inserting the order in the DB: %v", err)
 				return err
@@ -146,8 +181,14 @@ func (c *CustomerOrder) UpdateOrInsertCurrentOrder(db *sql.DB, senderNum string,
 			return err
 		}
 	} else {
-		// Keep in mind This will return without errors if the row does not exist - remove "return ErrNoRows" after if !isAutoInc to find out
-		err = c.updateCurrentOrder(db, update)
+
+		err = c.updateCustOrdItems(update)
+		if err != nil {
+			log.Printf("error writing the new values to the current order: %v", err)
+			return err
+		}
+		// Keep in mind This will return without errors if the row does not exist
+		err = c.updateCurrentOrder(db)
 		if err != nil {
 			log.Printf("error updating the order in the DB: %v", err)
 			return err
