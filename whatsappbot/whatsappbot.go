@@ -71,7 +71,7 @@ update consent: newConsent` + "\n\n" + updateOrderCommand
 )
 
 type Command interface {
-	Execute(db *sql.DB, ui UserInfo, isAutoInc bool) error
+	Execute(db *sql.DB, convo *ConversationContext, isAutoInc bool) error
 }
 
 type CommandCollection []Command
@@ -123,34 +123,29 @@ func (c *ChatClient) SendMessage(destinationNum, chatMessage string) error {
 	}
 }
 
-func (cmd UpdateUserInfoCommand) Execute(db *sql.DB, ui UserInfo, isAutoInc bool) error {
+func (cmd UpdateUserInfoCommand) Execute(db *sql.DB, convo *ConversationContext, isAutoInc bool) error {
 	var colName = strings.TrimSpace(strings.TrimPrefix(cmd.Name, "update"))
-	err := ui.UpdateSingularUserInfoField(db, colName, cmd.Text)
+	err := convo.UserInfo.UpdateSingularUserInfoField(db, colName, cmd.Text)
 	if err != nil {
 		return fmt.Errorf("unhandled error updating user info: %v", err)
 	}
 	return errors.New("successfully updated user info." + colName + " to " + cmd.Text)
 }
 
-func (cmd UpdateOrderCommand) Execute(db *sql.DB, ui UserInfo, isAutoInc bool) error {
+func (cmd UpdateOrderCommand) Execute(db *sql.DB, convo *ConversationContext, isAutoInc bool) error {
 	updates, err := ParseUpdateOrderCommand(cmd.Text)
 	if err != nil {
 		return fmt.Errorf("error parsing update answers command: %v", err)
 	}
-	// Create a new Order struct
-	curOrder := CustomerOrder{
-		CellNumber:  ui.CellNumber,
-		CatalogueID: catalogueID,
-		OrderItems:  OrderItems{MenuIndications: updates},
-	}
-	err = curOrder.UpdateOrInsertCurrentOrder(db, ui.CellNumber, catalogueID, curOrder.OrderItems, isAutoInc)
+
+	err = convo.CurrentOrder.UpdateOrInsertCurrentOrder(db, convo.UserInfo.CellNumber, catalogueID, OrderItems{MenuIndications: updates}, isAutoInc)
 	if err != nil {
 		return fmt.Errorf("unhandled error updating order: %v", err)
 	}
 	return errors.New("successfully updated current order")
 }
 
-func (cmd QuestionCommand) Execute(db *sql.DB, ui UserInfo, isAutoInc bool) error {
+func (cmd QuestionCommand) Execute(db *sql.DB, convo *ConversationContext, isAutoInc bool) error {
 	return fmt.Errorf("%s", cmd.CommandData.Text)
 }
 
@@ -181,25 +176,25 @@ func BeginCheckout(db *sql.DB, ui UserInfo, c CustomerOrder, checkoutUrls Checko
 	return cartSummary + "/n/n" + ProcessPayment(cart, checkoutUrls)
 }
 
-func parseQuestionCommand(match string, ui UserInfo, c CustomerOrder, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) Command {
+func parseQuestionCommand(match string, db *sql.DB, convo *ConversationContext, checkoutUrls CheckoutInfo, isAutoInc bool) Command {
 	switch match {
 	case "currentorder?":
-		return QuestionCommand{CommandData: CommandData{Name: "currentorder", Text: c.GetCurrentOrderAsAString(db, ui.CellNumber, isAutoInc)}}
+		return QuestionCommand{CommandData: CommandData{Name: "currentorder", Text: convo.CurrentOrder.GetCurrentOrderAsAString(db, convo.UserInfo.CellNumber, isAutoInc)}}
 	case "fr.prlist?":
 		return QuestionCommand{CommandData: CommandData{Name: "fr.prlist", Text: prclstPreamble + "\n\n" + PriceListAsAString()}}
 	case "userinfo?":
-		return QuestionCommand{CommandData: CommandData{Name: "userinfo", Text: ui.GetUserInfoAsAString()}}
+		return QuestionCommand{CommandData: CommandData{Name: "userinfo", Text: convo.UserInfo.GetUserInfoAsAString()}}
 	case "checkoutnow?":
-		return QuestionCommand{CommandData: CommandData{Name: "checkoutnow", Text: BeginCheckout(db, ui, c, checkoutUrls, isAutoInc)}}
+		return QuestionCommand{CommandData: CommandData{Name: "checkoutnow", Text: BeginCheckout(db, convo.UserInfo, convo.CurrentOrder, checkoutUrls, isAutoInc)}}
 	default:
 		return QuestionCommand{CommandData: CommandData{Name: "menu", Text: mainMenu}}
 	}
 }
 
-func (cc CommandCollection) ProcessCommands(ui UserInfo, db *sql.DB, isAutoInc bool) string {
+func (cc CommandCollection) ProcessCommands(convo *ConversationContext, db *sql.DB, isAutoInc bool) string {
 	var errors []string
 	for _, command := range cc {
-		err := command.Execute(db, ui, isAutoInc)
+		err := command.Execute(db, convo, isAutoInc)
 		if err != nil {
 			errors = append(errors, err.Error())
 		}
@@ -207,12 +202,12 @@ func (cc CommandCollection) ProcessCommands(ui UserInfo, db *sql.DB, isAutoInc b
 	return strings.Join(errors, "\n")
 }
 
-func (c *ChatClient) ChatBegin(convo ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) {
+func (c *ChatClient) ChatBegin(convo *ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) {
 	commandRes := unhandledCommandException
 	commands := GetCommandsFromLastMessage(convo.MessageBody, convo, db, checkoutUrls, isAutoInc)
 	if len(commands) != 0 {
 		// Process commands
-		commandRes_Temp := CommandCollection(commands).ProcessCommands(convo.UserInfo, db, isAutoInc)
+		commandRes_Temp := CommandCollection(commands).ProcessCommands(convo, db, isAutoInc)
 		if commandRes_Temp != "" && commandRes_Temp != " " && commandRes_Temp != "\n" {
 			commandRes = commandRes_Temp
 		}
@@ -247,14 +242,14 @@ var (
 	regexUpdateAnswers = regexp.MustCompile(`(update order):?\s*(.*)`)
 )
 
-func GetCommandsFromLastMessage(messageBody string, convo ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) []Command {
+func GetCommandsFromLastMessage(messageBody string, convo *ConversationContext, db *sql.DB, checkoutUrls CheckoutInfo, isAutoInc bool) []Command {
 	var commands []Command
 	messageBody = strings.ToLower(messageBody)
 
 	// Use precompiled regular expressions
 	if matches := regexQuestionMark.FindAllStringSubmatch(messageBody, -1); matches != nil {
 		for _, match := range matches {
-			commands = append(commands, parseQuestionCommand(match[1], convo.UserInfo, convo.CurrentOrder, db, checkoutUrls, isAutoInc))
+			commands = append(commands, parseQuestionCommand(match[1], db, convo, checkoutUrls, isAutoInc))
 		}
 	}
 
