@@ -132,7 +132,7 @@ func (c CustomerOrder) updateCurrentOrder(db *sql.DB) error {
 }
 
 // UpdateOrInsertCurrentOrder updates or inserts a customer order in the database.
-func (c *CustomerOrder) updateCustOrdItems(update OrderItems) error {
+func (c *CustomerOrder) UpdateCustOrdItems(update OrderItems) error {
 	// Create a map to track existing MenuIndications by ItemMenuNum
 	existingMenuIndications := make(map[int]MenuIndication)
 	for _, existing := range c.OrderItems.MenuIndications {
@@ -182,7 +182,7 @@ func (c *CustomerOrder) UpdateOrInsertCurrentOrder(db *sql.DB, senderNum string,
 		}
 	} else {
 
-		err = c.updateCustOrdItems(update)
+		err = c.UpdateCustOrdItems(update)
 		if err != nil {
 			log.Printf("error writing the new values to the current order: %v", err)
 			return err
