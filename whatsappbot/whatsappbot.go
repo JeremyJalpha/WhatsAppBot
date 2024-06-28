@@ -55,6 +55,9 @@ to save your order please type & send-:` + updateOrderCommand + "\n\n" + fullOrd
 
 To checkout type & send-: checkoutnow?`
 
+	deleteOrder = `To remove an item from your order, use the update order command with 0 as the new amount like so-: update order X:0
+Where X is the item number as listed in the price list`
+
 	mainMenu = `Main Menu, command list:
 
 fr.prlist? - Prints the Flying Rasta price list.
@@ -67,7 +70,7 @@ checkoutnow? - Prints a payment link for your current basket.
 update email: newEmail
 update nickname: newNickname
 update social: newSocial
-update consent: newConsent` + "\n\n" + updateOrderCommand
+update consent: newConsent` + "\n\n" + updateOrderCommand + "\n\n" + deleteOrder
 )
 
 type Command interface {
