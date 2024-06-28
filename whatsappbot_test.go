@@ -80,21 +80,28 @@ func Test_UpdateCustOrdItems(t *testing.T) {
 			given: wb.CustomerOrder{
 				OrderItems: wb.OrderItems{
 					MenuIndications: []wb.MenuIndication{
-						{ItemMenuNum: 10, ItemAmount: "1x3, 3x2, 2x1"},
-						{ItemMenuNum: 9, ItemAmount: "12"},
+						{ItemMenuNum: 10, ItemAmount: "1x3"},
+						{ItemMenuNum: 9, ItemAmount: "5"},
+						{ItemMenuNum: 8, ItemAmount: "6"},
+						{ItemMenuNum: 7, ItemAmount: "7"},
 						{ItemMenuNum: 6, ItemAmount: "5"},
+						{ItemMenuNum: 5, ItemAmount: "9"},
 					},
 				},
 			},
 			update: wb.OrderItems{
 				MenuIndications: []wb.MenuIndication{
+					{ItemMenuNum: 10, ItemAmount: "1x3, 3x2, 2x1"},
 					{ItemMenuNum: 6, ItemAmount: "0"},
 				},
 			},
 			expected: wb.OrderItems{
 				MenuIndications: []wb.MenuIndication{
 					{ItemMenuNum: 10, ItemAmount: "1x3, 3x2, 2x1"},
-					{ItemMenuNum: 9, ItemAmount: "12"},
+					{ItemMenuNum: 9, ItemAmount: "5"},
+					{ItemMenuNum: 8, ItemAmount: "6"},
+					{ItemMenuNum: 7, ItemAmount: "7"},
+					{ItemMenuNum: 5, ItemAmount: "9"},
 				},
 			},
 			expectError: false,
@@ -109,8 +116,8 @@ func Test_UpdateCustOrdItems(t *testing.T) {
 			t.Errorf("UpdateCustOrdItems(%q) error = %v, expectError %v", test.update, err, test.expectError)
 			continue
 		}
-		if !reflect.DeepEqual(test.given, test.expected) {
-			t.Errorf("UpdateCustOrdItems(%q) = %v, want %v", test.update, test.given, test.expected)
+		if !reflect.DeepEqual(test.given.OrderItems, test.expected) {
+			t.Errorf("UpdateCustOrdItems(%q) = %v, want %v", test.update, test.given.OrderItems, test.expected)
 		}
 	}
 }

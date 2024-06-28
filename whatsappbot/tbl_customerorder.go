@@ -70,13 +70,13 @@ func (c *CustomerOrder) checkInitialization(db *sql.DB, senderNum string, isAuto
 			return "No current order. We vill asks ze questions."
 		}
 	}
-	return "Initialized"
+	return custOrderInitState
 }
 
 // A function that returns the current order of a user as a string
 func (c *CustomerOrder) GetCurrentOrderAsAString(db *sql.DB, senderNum string, isAutoInc bool) string {
 	isInited := c.checkInitialization(db, senderNum, isAutoInc)
-	if isInited != "Initialized" {
+	if isInited != custOrderInitState {
 		return isInited
 	}
 	// iterate over the slice and build the string
@@ -132,36 +132,37 @@ func (c CustomerOrder) updateCurrentOrder(db *sql.DB) error {
 }
 
 // UpdateOrInsertCurrentOrder updates or inserts a customer order in the database.
-func (c *CustomerOrder) UpdateCustOrdItems(update OrderItems) error {
-	// Create a map to track existing MenuIndications by ItemMenuNum
-	existingMenuIndications := make(map[int]MenuIndication)
-	for _, existing := range c.OrderItems.MenuIndications {
-		existingMenuIndications[existing.ItemMenuNum] = existing
-	}
-
-	// Update existing MenuIndications with new values
-	for _, new := range update.MenuIndications {
-		if existing, ok := existingMenuIndications[new.ItemMenuNum]; ok {
-			// Update existing MenuIndication
-			existing.ItemAmount = new.ItemAmount
-			// Remove MenuIndication if ItemAmount is zero
-			if existing.ItemAmount == "0" {
-				delete(existingMenuIndications, new.ItemMenuNum)
-			}
-		} else {
-			// Add new MenuIndication
-			existingMenuIndications[new.ItemMenuNum] = new
+func (c *CustomerOrder) cleanOrderItems() error {
+	// Filter out items with ItemAmount equal to "0"
+	var filteredMenu []MenuIndication
+	for _, ordItm := range c.OrderItems.MenuIndications {
+		if ordItm.ItemAmount != "0" {
+			filteredMenu = append(filteredMenu, ordItm)
 		}
 	}
 
-	// Convert the map back to a slice of MenuIndications
-	var updatedMenuIndications []MenuIndication
-	for _, v := range existingMenuIndications {
-		updatedMenuIndications = append(updatedMenuIndications, v)
+	// Update c.OrderItems.MenuIndications with the filtered slice
+	c.OrderItems.MenuIndications = filteredMenu
+
+	return nil
+}
+
+// UpdateOrInsertCurrentOrder updates or inserts a customer order in the database.
+func (c *CustomerOrder) UpdateCustOrdItems(update OrderItems) error {
+	// Initialize a map to track processed ItemMenuNum values
+	processed := make(map[int]bool)
+
+	for _, upd := range update.MenuIndications {
+		for i, ordItm := range c.OrderItems.MenuIndications {
+			if !processed[ordItm.ItemMenuNum] && ordItm.ItemMenuNum == upd.ItemMenuNum {
+				c.OrderItems.MenuIndications[i] = upd // Overwrite existing ordItm with upd
+				// Mark this ItemMenuNum as processed
+				processed[ordItm.ItemMenuNum] = true
+			}
+		}
 	}
 
-	// Update c.OrderItems with the updated MenuIndications
-	c.OrderItems.MenuIndications = updatedMenuIndications
+	c.cleanOrderItems()
 
 	return nil
 }
@@ -205,7 +206,7 @@ func (c *CustomerOrder) BuildItemName(itemNamePrefix string) string {
 // Main function to tally the order
 func (c *CustomerOrder) TallyOrder(db *sql.DB, senderNum string, isAutoInc bool) (int, string, error) {
 	isInited := c.checkInitialization(db, senderNum, isAutoInc)
-	if isInited != "Initialized" {
+	if isInited != custOrderInitState {
 		return -1, "", fmt.Errorf("while tallying the order, no current order")
 	}
 
